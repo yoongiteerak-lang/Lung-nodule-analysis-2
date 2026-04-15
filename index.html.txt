@@ -1,0 +1,728 @@
+```html
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Advanced Lung Nodule Radiomics Workstation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            background-color: #0f172a; 
+            color: #e2e8f0;
+            overscroll-behavior-y: none; 
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; border-radius: 4px;}
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px;}
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .panel { background-color: #1e293b; border: 1px solid #334155; }
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #000;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            min-height: 350px;
+            position: relative;
+            touch-action: none; 
+            border: 1px solid #334155;
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+            cursor: crosshair;
+        }
+        .seed-marker {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: #10b981; 
+            border: 1px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 20;
+            box-shadow: 0 0 5px #10b981;
+        }
+        
+        .step-active { background-color: #312e81; border-color: #6366f1; color: #e0e7ff; }
+        .step-inactive { background-color: #1e293b; border-color: #334155; color: #64748b; }
+        
+        input[type=range] {
+            -webkit-appearance: none;
+            background: #334155;
+            border-radius: 8px;
+            height: 6px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #6366f1;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="pb-10">
+
+    <nav class="bg-slate-900 border-b border-slate-700 p-3 sticky top-0 z-50">
+        <div class="max-w-[1400px] mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-satellite-dish text-2xl text-indigo-400"></i>
+                <h1 class="text-xl font-bold tracking-wide text-white">Advanced Radiomics Workstation</h1>
+            </div>
+            <div class="text-xs text-slate-400 hidden sm:block">
+                <i class="fas fa-apple-alt mr-1"></i> Apple Pencil Ready & Multi-Seed
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-[1400px] mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-5">
+        
+        <div class="lg:col-span-3 space-y-4">
+            
+            <div class="panel p-4 rounded-xl shadow-lg">
+                <h2 class="text-sm font-semibold mb-3 text-slate-300 uppercase tracking-wider">
+                    <i class="fas fa-folder-open mr-2"></i> 1. Image Source
+                </h2>
+                <input id="imageUpload" type="file" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer" accept="image/*" />
+            </div>
+
+            <div class="panel p-4 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+                        <i class="fas fa-adjust mr-2"></i> 2. Enhancement
+                    </h2>
+                    <button id="resetEnhanceBtn" class="text-xs text-indigo-400 hover:text-indigo-300"><i class="fas fa-undo"></i> Reset</button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="flex justify-between text-xs text-slate-400 mb-1">
+                            <span>Brightness</span>
+                            <span id="brightnessVal">0</span>
+                        </label>
+                        <input type="range" id="brightness" min="-100" max="100" value="0" class="w-full">
+                    </div>
+                    <div>
+                        <label class="flex justify-between text-xs text-slate-400 mb-1">
+                            <span>Contrast</span>
+                            <span id="contrastVal">0</span>
+                        </label>
+                        <input type="range" id="contrast" min="-100" max="100" value="0" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel p-4 rounded-xl shadow-lg">
+                <h2 class="text-sm font-semibold mb-3 text-slate-300 uppercase tracking-wider">
+                    <i class="fas fa-crosshairs mr-2"></i> 3. Segmentation
+                </h2>
+
+                <div class="mb-4 space-y-2">
+                    <div id="step1" class="step-active border-l-4 p-2 rounded-r text-xs font-medium transition-colors">
+                        <i class="fas fa-pencil-alt mr-1"></i> 1) วาดกรอบล้อมก้อนเนื้อ 1 ก้อน
+                    </div>
+                    <div id="step2" class="step-inactive border-l-4 p-2 rounded-r text-xs font-medium transition-colors">
+                        <i class="fas fa-bullseye mr-1"></i> 2) แตะเลือกจุดอ้างอิง (Multi-Seed) ภายในก้อน
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="flex justify-between text-xs text-slate-400 mb-1">
+                            <span>Tolerance (ความไวสี)</span>
+                            <span id="toleranceVal" class="text-indigo-400 font-bold">30</span>
+                        </label>
+                        <input type="range" id="tolerance" min="5" max="100" value="30" class="w-full">
+                    </div>
+
+                    <div class="flex gap-3">
+                        <div class="w-1/2">
+                            <label class="block text-xs text-slate-400 mb-1">Erosion: <span id="erosionVal">0</span></label>
+                            <input type="range" id="erosion" min="0" max="5" value="0" class="w-full">
+                        </div>
+                        <div class="w-1/2">
+                            <label class="block text-xs text-slate-400 mb-1">Dilation: <span id="dilationVal">0</span></label>
+                            <input type="range" id="dilation" min="0" max="5" value="0" class="w-full">
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center pt-2 justify-between">
+                        <div class="flex items-center">
+                            <input id="showOverlay" type="checkbox" checked class="w-4 h-4 rounded bg-slate-700 border-slate-600 text-indigo-500">
+                            <label for="showOverlay" class="ml-2 text-xs text-slate-300">แสดง Mask สีแดง</label>
+                        </div>
+                        <button id="clearSeedsBtn" class="text-xs text-amber-400 hover:text-amber-300 hidden" title="ลบจุดอ้างอิงทั้งหมด">
+                            <i class="fas fa-eraser"></i> ล้างจุด (Seed)
+                        </button>
+                    </div>
+                </div>
+
+                <button id="resetDrawBtn" class="mt-4 w-full bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 text-xs font-bold py-2 px-4 rounded transition duration-200">
+                    <i class="fas fa-trash-alt mr-1"></i> เริ่มวาดกรอบใหม่
+                </button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-5 flex flex-col gap-4">
+            <div class="panel p-3 rounded-xl shadow-lg flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-sm font-semibold text-slate-300">Workspace (Draw & Seed)</h3>
+                    <span class="text-[10px] bg-slate-700 px-2 py-1 rounded text-slate-300">Original / Enhanced</span>
+                </div>
+                <div class="canvas-container flex-grow" id="sourceContainer">
+                    <span id="uploadPrompt" class="text-slate-500 text-sm absolute z-10 pointer-events-none"><i class="fas fa-upload text-2xl mb-2 block text-center"></i> Please upload CT scan</span>
+                    <canvas id="canvasOriginal"></canvas>
+                    <div id="markersContainer"></div>
+                </div>
+            </div>
+
+            <div class="panel p-3 rounded-xl shadow-lg flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-sm font-semibold text-slate-300">Segmentation Result</h3>
+                    <span class="text-[10px] bg-indigo-900 px-2 py-1 rounded text-indigo-200">AI Mask</span>
+                </div>
+                <div class="canvas-container flex-grow">
+                    <canvas id="canvasResult"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 panel p-5 rounded-xl shadow-lg flex flex-col">
+            <h2 class="text-sm font-semibold mb-4 text-slate-300 uppercase tracking-wider border-b border-slate-700 pb-2">
+                <i class="fas fa-brain mr-2"></i> 4. Radiomics Analysis
+            </h2>
+
+            <div id="emptyAnalysis" class="flex-grow flex flex-col items-center justify-center text-slate-500 text-sm text-center">
+                <i class="fas fa-dna text-4xl mb-3 opacity-50"></i>
+                <p>ทำการวาดกรอบและเลือกก้อนเนื้อ<br>เพื่อประเมินความเสี่ยง</p>
+            </div>
+
+            <div id="analysisResult" class="hidden flex-grow flex flex-col custom-scrollbar overflow-y-auto pr-1">
+                
+                <div id="riskBanner" class="p-5 rounded-lg mb-5 text-center shadow-lg border relative overflow-hidden">
+                    <div id="riskBgProgress" class="absolute top-0 left-0 h-full bg-opacity-20 transition-all duration-1000 ease-out" style="width: 0%"></div>
+                    <div class="relative z-10">
+                        <div class="text-xs font-bold uppercase tracking-widest opacity-80 mb-1" id="riskLabel">Probability of Malignancy</div>
+                        <div class="text-4xl font-black mb-1" id="riskPercentage">0%</div>
+                        <div class="text-sm font-medium" id="riskConclusion">...</div>
+                    </div>
+                </div>
+
+                <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Radiomic Features</div>
+                
+                <div class="grid grid-cols-1 gap-3 text-sm">
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-blue-900/50 flex items-center justify-center text-blue-400"><i class="fas fa-expand-arrows-alt"></i></div>
+                            <div>
+                                <div class="text-slate-300 font-medium text-xs">Area (ขนาดพื้นที่)</div>
+                                <div class="text-[10px] text-slate-500">สูง = เสี่ยงสูง</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div id="featArea" class="font-bold text-slate-200">0</div>
+                            <div class="text-[10px] text-slate-500">px²</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-emerald-900/50 flex items-center justify-center text-emerald-400"><i class="fas fa-circle-notch"></i></div>
+                            <div>
+                                <div class="text-slate-300 font-medium text-xs">Circularity (ความกลม)</div>
+                                <div class="text-[10px] text-slate-500">ต่ำ (ขรุขระ) = เสี่ยงสูง</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div id="featCirc" class="font-bold text-slate-200">0.00</div>
+                            <div class="text-[10px] text-slate-500">ratio (0-1)</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-amber-900/50 flex items-center justify-center text-amber-400"><i class="fas fa-adjust"></i></div>
+                            <div>
+                                <div class="text-slate-300 font-medium text-xs">Mean Density (ความทึบ)</div>
+                                <div class="text-[10px] text-slate-500">บอกชนิด Solid/Subsolid</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div id="featMean" class="font-bold text-slate-200">0.0</div>
+                            <div class="text-[10px] text-slate-500">intensity</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded bg-purple-900/50 flex items-center justify-center text-purple-400"><i class="fas fa-chart-area"></i></div>
+                            <div>
+                                <div class="text-slate-300 font-medium text-xs">Heterogeneity (ความสม่ำเสมอ)</div>
+                                <div class="text-[10px] text-slate-500">สูง (สีด่าง) = เสี่ยงสูง</div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div id="featStd" class="font-bold text-slate-200">0.00</div>
+                            <div class="text-[10px] text-slate-500">std. dev</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-indigo-900/30 rounded border border-indigo-500/30 text-[10px] text-indigo-300 leading-relaxed">
+                    <i class="fas fa-info-circle"></i> <b>Logistic Regression Model:</b> ระบบจำลองน้ำหนักด้วยโมเดล Logistic Regression ประเมินจากความผิดปกติของขนาด ขอบ และพื้นผิว
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let rawImageObj = new Image();
+        let isImageLoaded = false;
+        let rawPixelData = null;      
+        let enhancedPixelData = null; 
+        const MAX_WIDTH = 600;
+
+        let currentMode = 'DRAW'; 
+        let isDrawing = false;
+        let roiPoints = [];
+        let roiMask = null;
+        let seedPoints = []; 
+
+        const imageUpload = document.getElementById('imageUpload');
+        const canvasOriginal = document.getElementById('canvasOriginal');
+        const canvasResult = document.getElementById('canvasResult');
+        const ctxOriginal = canvasOriginal.getContext('2d', { willReadFrequently: true });
+        const ctxResult = canvasResult.getContext('2d');
+        const sourceContainer = document.getElementById('sourceContainer');
+        const markersContainer = document.getElementById('markersContainer');
+
+        const brightnessSlider = document.getElementById('brightness');
+        const contrastSlider = document.getElementById('contrast');
+        const resetEnhanceBtn = document.getElementById('resetEnhanceBtn');
+        
+        const toleranceSlider = document.getElementById('tolerance');
+        const erosionSlider = document.getElementById('erosion');
+        const dilationSlider = document.getElementById('dilation');
+        const showOverlayCb = document.getElementById('showOverlay');
+        const resetDrawBtn = document.getElementById('resetDrawBtn');
+        const clearSeedsBtn = document.getElementById('clearSeedsBtn');
+        const step1UI = document.getElementById('step1');
+        const step2UI = document.getElementById('step2');
+
+        const emptyAnalysis = document.getElementById('emptyAnalysis');
+        const analysisResult = document.getElementById('analysisResult');
+
+        brightnessSlider.addEventListener('input', (e) => { document.getElementById('brightnessVal').innerText = e.target.value; applyImageEnhancement(); });
+        contrastSlider.addEventListener('input', (e) => { document.getElementById('contrastVal').innerText = e.target.value; applyImageEnhancement(); });
+        resetEnhanceBtn.addEventListener('click', () => { 
+            brightnessSlider.value = 0; contrastSlider.value = 0; 
+            document.getElementById('brightnessVal').innerText = "0"; document.getElementById('contrastVal').innerText = "0";
+            applyImageEnhancement(); 
+        });
+
+        toleranceSlider.addEventListener('input', (e) => { document.getElementById('toleranceVal').innerText = e.target.value; processSegmentation(); });
+        erosionSlider.addEventListener('input', (e) => { document.getElementById('erosionVal').innerText = e.target.value; processSegmentation(); });
+        dilationSlider.addEventListener('input', (e) => { document.getElementById('dilationVal').innerText = e.target.value; processSegmentation(); });
+        showOverlayCb.addEventListener('change', processSegmentation);
+        
+        resetDrawBtn.addEventListener('click', resetROI);
+        clearSeedsBtn.addEventListener('click', () => {
+            seedPoints = [];
+            clearMarkers();
+            clearSeedsBtn.classList.add('hidden');
+            hideAnalysis();
+            redrawOriginalCanvas();
+            clearResultCanvas();
+        });
+
+        imageUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                rawImageObj.onload = function() {
+                    document.getElementById('uploadPrompt').style.display = 'none';
+                    let width = rawImageObj.width;
+                    let height = rawImageObj.height;
+                    if (width > MAX_WIDTH) { height = Math.floor(height * (MAX_WIDTH / width)); width = MAX_WIDTH; }
+
+                    canvasOriginal.width = width; canvasOriginal.height = height;
+                    canvasResult.width = width; canvasResult.height = height;
+
+                    ctxOriginal.drawImage(rawImageObj, 0, 0, width, height);
+                    rawPixelData = ctxOriginal.getImageData(0, 0, width, height);
+                    isImageLoaded = true;
+                    resetEnhanceBtn.click(); 
+                }
+                rawImageObj.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        function applyImageEnhancement() {
+            if (!isImageLoaded || !rawPixelData) return;
+            const width = canvasOriginal.width;
+            const height = canvasOriginal.height;
+            const b = parseInt(brightnessSlider.value);
+            const c = parseInt(contrastSlider.value);
+
+            enhancedPixelData = new ImageData(new Uint8ClampedArray(rawPixelData.data), width, height);
+            const data = enhancedPixelData.data;
+            const factor = (259 * (c + 255)) / (255 * (259 - c));
+
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = clamp(factor * (data[i] - 128) + 128 + b);       
+                data[i+1] = clamp(factor * (data[i+1] - 128) + 128 + b);   
+                data[i+2] = clamp(factor * (data[i+2] - 128) + 128 + b);   
+            }
+
+            redrawOriginalCanvas();
+            if (seedPoints.length > 0) processSegmentation();
+        }
+        function clamp(value) { return Math.max(0, Math.min(255, value)); }
+
+        function getPointerPos(clientX, clientY) {
+            const rect = canvasOriginal.getBoundingClientRect();
+            const scaleX = canvasOriginal.width / rect.width;
+            const scaleY = canvasOriginal.height / rect.height;
+            return {
+                x: Math.floor((clientX - rect.left) * scaleX),
+                y: Math.floor((clientY - rect.top) * scaleY),
+                rawX: clientX, rawY: clientY
+            };
+        }
+
+        function handlePointerDown(e) {
+            if (!isImageLoaded) return;
+            if (e.type === 'touchstart') e.preventDefault(); 
+            
+            let clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+            let clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            const pos = getPointerPos(clientX, clientY);
+
+            if (currentMode === 'DRAW') {
+                isDrawing = true;
+                roiPoints = [{ x: pos.x, y: pos.y }];
+                redrawOriginalCanvas();
+            } else if (currentMode === 'SEED') {
+                if (roiMask && roiMask[pos.y * canvasOriginal.width + pos.x] === 0) return; 
+
+                seedPoints.push({ x: pos.x, y: pos.y });
+                
+                const markerX = pos.rawX - sourceContainer.getBoundingClientRect().left;
+                const markerY = pos.rawY - sourceContainer.getBoundingClientRect().top;
+                addMarkerVisual(markerX, markerY);
+
+                clearSeedsBtn.classList.remove('hidden'); 
+                processSegmentation();
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!isDrawing || currentMode !== 'DRAW') return;
+            if (e.type === 'touchmove') e.preventDefault();
+            let clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            let clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+            const pos = getPointerPos(clientX, clientY);
+            roiPoints.push({ x: pos.x, y: pos.y });
+            redrawOriginalCanvas();
+        }
+
+        function handlePointerUp(e) {
+            if (!isDrawing || currentMode !== 'DRAW') return;
+            if (e.type === 'touchend') e.preventDefault();
+            isDrawing = false;
+            if (roiPoints.length > 5) {
+                roiPoints.push({ x: roiPoints[0].x, y: roiPoints[0].y });
+                generateROIMask();
+                currentMode = 'SEED';
+                updateStepUI();
+                redrawOriginalCanvas();
+            } else {
+                roiPoints = [];
+                redrawOriginalCanvas();
+            }
+        }
+
+        canvasOriginal.addEventListener('mousedown', handlePointerDown);
+        canvasOriginal.addEventListener('mousemove', handlePointerMove);
+        canvasOriginal.addEventListener('mouseup', handlePointerUp);
+        canvasOriginal.addEventListener('mouseleave', () => { if (isDrawing) { isDrawing = false; roiPoints = []; redrawOriginalCanvas(); }});
+        canvasOriginal.addEventListener('touchstart', handlePointerDown, { passive: false });
+        canvasOriginal.addEventListener('touchmove', handlePointerMove, { passive: false });
+        canvasOriginal.addEventListener('touchend', handlePointerUp, { passive: false });
+
+        function addMarkerVisual(x, y) {
+            const marker = document.createElement('div');
+            marker.className = 'seed-marker';
+            marker.style.left = x + 'px';
+            marker.style.top = y + 'px';
+            marker.style.display = 'block';
+            markersContainer.appendChild(marker);
+        }
+        function clearMarkers() {
+            markersContainer.innerHTML = '';
+        }
+
+        function resetROI() {
+            roiPoints = []; roiMask = null; seedPoints = [];
+            currentMode = 'DRAW'; clearMarkers(); clearSeedsBtn.classList.add('hidden');
+            updateStepUI(); hideAnalysis();
+            if(isImageLoaded) { redrawOriginalCanvas(); clearResultCanvas(); }
+        }
+
+        function updateStepUI() {
+            if (currentMode === 'DRAW') {
+                step1UI.className = "step-active border-l-4 p-2 rounded-r text-xs font-medium transition-colors";
+                step2UI.className = "step-inactive border-l-4 p-2 rounded-r text-xs font-medium transition-colors";
+                canvasOriginal.style.cursor = "crosshair";
+            } else {
+                step1UI.className = "step-inactive border-l-4 p-2 rounded-r text-xs font-medium transition-colors";
+                step2UI.className = "step-active border-l-4 p-2 rounded-r text-xs font-medium transition-colors";
+                canvasOriginal.style.cursor = "crosshair"; 
+            }
+        }
+
+        function redrawOriginalCanvas() {
+            if (!isImageLoaded || !enhancedPixelData) return;
+            ctxOriginal.putImageData(enhancedPixelData, 0, 0);
+
+            if (roiPoints.length > 0) {
+                ctxOriginal.beginPath();
+                ctxOriginal.moveTo(roiPoints[0].x, roiPoints[0].y);
+                for (let i = 1; i < roiPoints.length; i++) ctxOriginal.lineTo(roiPoints[i].x, roiPoints[i].y);
+
+                if (currentMode === 'SEED') {
+                    ctxOriginal.closePath();
+                    ctxOriginal.fillStyle = 'rgba(99, 102, 241, 0.15)'; 
+                    ctxOriginal.fill();
+                    ctxOriginal.strokeStyle = '#6366f1';
+                    ctxOriginal.setLineDash([5, 5]);
+                    ctxOriginal.lineWidth = 1.5;
+                } else {
+                    ctxOriginal.strokeStyle = '#10b981'; 
+                    ctxOriginal.setLineDash([]);
+                    ctxOriginal.lineWidth = 2.5;
+                }
+                ctxOriginal.stroke();
+                ctxOriginal.setLineDash([]);
+            }
+        }
+
+        function generateROIMask() {
+            const w = canvasOriginal.width, h = canvasOriginal.height;
+            const offC = document.createElement('canvas'); offC.width = w; offC.height = h;
+            const offCtx = offC.getContext('2d');
+            offCtx.fillStyle = '#000'; offCtx.fillRect(0, 0, w, h);
+            offCtx.beginPath(); offCtx.moveTo(roiPoints[0].x, roiPoints[0].y);
+            for (let i = 1; i < roiPoints.length; i++) offCtx.lineTo(roiPoints[i].x, roiPoints[i].y);
+            offCtx.closePath(); offCtx.fillStyle = '#fff'; offCtx.fill();
+            
+            const maskData = offCtx.getImageData(0, 0, w, h).data;
+            roiMask = new Uint8Array(w * h);
+            for (let i = 0; i < w * h; i++) roiMask[i] = maskData[i * 4] > 128 ? 1 : 0;
+        }
+
+        function clearResultCanvas() {
+            ctxResult.clearRect(0, 0, canvasResult.width, canvasResult.height);
+            if(enhancedPixelData) ctxResult.putImageData(enhancedPixelData, 0, 0);
+        }
+
+        function processSegmentation() {
+            if (!isImageLoaded || seedPoints.length === 0 || !enhancedPixelData || !roiMask) return;
+
+            const w = canvasOriginal.width, h = canvasOriginal.height;
+            const data = enhancedPixelData.data;
+            const tolerance = parseInt(toleranceSlider.value);
+            
+            let mask = new Uint8Array(w * h);
+            let stack = [];
+
+            let seedIntensities = [];
+            seedPoints.forEach(p => {
+                const sIdx = (p.y * w + p.x) * 4;
+                const gray = 0.299*data[sIdx] + 0.587*data[sIdx+1] + 0.114*data[sIdx+2];
+                seedIntensities.push(gray);
+                
+                mask[p.y * w + p.x] = 1;
+                stack.push(p.x, p.y);
+            });
+
+            const dx = [0, 0, -1, 1], dy = [-1, 1, 0, 0];
+
+            while (stack.length > 0) {
+                const cy = stack.pop(), cx = stack.pop();
+                for (let i = 0; i < 4; i++) {
+                    const nx = cx + dx[i], ny = cy + dy[i];
+                    if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                        if (roiMask[ny * w + nx] === 0) continue; 
+                        
+                        const nIdx = ny * w + nx;
+                        if (mask[nIdx] === 0) {
+                            const pIdx = nIdx * 4;
+                            const nGray = 0.299*data[pIdx] + 0.587*data[pIdx+1] + 0.114*data[pIdx+2];
+                            
+                            let matchFound = false;
+                            for(let j=0; j<seedIntensities.length; j++) {
+                                if (Math.abs(nGray - seedIntensities[j]) <= tolerance) {
+                                    matchFound = true;
+                                    break;
+                                }
+                            }
+
+                            if (matchFound) {
+                                mask[nIdx] = 1; 
+                                stack.push(nx, ny);
+                            }
+                        }
+                    }
+                }
+            }
+
+            const eIter = parseInt(erosionSlider.value), dIter = parseInt(dilationSlider.value);
+            for (let i = 0; i < eIter; i++) mask = morphErode(mask, w, h);
+            for (let i = 0; i < dIter; i++) mask = morphDilate(mask, w, h);
+
+            drawMaskResult(mask, w, h);
+            extractAdvancedRadiomics(mask, w, h, data);
+        }
+
+        function drawMaskResult(mask, w, h) {
+            const data = enhancedPixelData.data;
+            const overlay = showOverlayCb.checked;
+            const resImg = ctxResult.createImageData(w, h);
+            const rData = resImg.data;
+
+            for (let i = 0; i < mask.length; i++) {
+                const p = i * 4;
+                if (overlay) {
+                    if (mask[i] === 1) {
+                        rData[p] = Math.min(255, data[p] + 130); 
+                        rData[p+1] = data[p+1] * 0.3;
+                        rData[p+2] = data[p+2] * 0.3;
+                    } else {
+                        rData[p] = data[p]; rData[p+1] = data[p+1]; rData[p+2] = data[p+2];
+                    }
+                } else {
+                    const v = mask[i] === 1 ? 255 : 0;
+                    rData[p] = v; rData[p+1] = v; rData[p+2] = v;
+                }
+                rData[p+3] = 255;
+            }
+            ctxResult.putImageData(resImg, 0, 0);
+        }
+
+        function morphErode(src, w, h) {
+            let dst = new Uint8Array(src.length);
+            for (let y = 1; y < h-1; y++) for (let x = 1; x < w-1; x++) {
+                let m = 1;
+                for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                    if (src[(y+dy)*w + (x+dx)] === 0) m = 0;
+                }
+                dst[y*w+x] = m;
+            }
+            return dst;
+        }
+        function morphDilate(src, w, h) {
+            let dst = new Uint8Array(src.length);
+            for (let y = 1; y < h-1; y++) for (let x = 1; x < w-1; x++) {
+                let m = 0;
+                for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                    if (src[(y+dy)*w + (x+dx)] === 1) m = 1;
+                }
+                dst[y*w+x] = m;
+            }
+            return dst;
+        }
+
+        function extractAdvancedRadiomics(mask, w, h, pixelData) {
+            let area = 0, perimeter = 0;
+            let intensities = [];
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    let idx = y * w + x;
+                    if (mask[idx] === 1) {
+                        area++;
+                        if (x===0 || x===w-1 || y===0 || y===h-1 || 
+                            mask[y*w+(x-1)]===0 || mask[y*w+(x+1)]===0 || mask[(y-1)*w+x]===0 || mask[(y+1)*w+x]===0) {
+                            perimeter++;
+                        }
+                        const pIdx = idx * 4;
+                        const gray = 0.299*pixelData[pIdx] + 0.587*pixelData[pIdx+1] + 0.114*pixelData[pIdx+2];
+                        intensities.push(gray);
+                    }
+                }
+            }
+
+            if (area < 10) { hideAnalysis(); return; } 
+
+            let circularity = (perimeter > 0) ? Math.min(1.0, (4 * Math.PI * area) / (perimeter * perimeter)) : 0;
+            let mean = intensities.reduce((a, b) => a + b, 0) / area;
+            let variance = intensities.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / area;
+            let stdDev = Math.sqrt(variance);
+
+            let z = -4.5; 
+            z += (area / 1000) * 1.8; 
+            z += (1.0 - circularity) * 3.5;
+            z += (stdDev / 30) * 1.5;
+
+            let probability = 1 / (1 + Math.exp(-z));
+            let percentage = (probability * 100).toFixed(1);
+
+            updateRadiomicsUI(area, circularity, mean, stdDev, percentage);
+        }
+
+        function updateRadiomicsUI(area, circ, mean, std, probPercent) {
+            emptyAnalysis.style.display = 'none';
+            analysisResult.style.display = 'flex';
+
+            document.getElementById('featArea').innerText = area.toLocaleString();
+            document.getElementById('featCirc').innerText = circ.toFixed(3);
+            document.getElementById('featMean').innerText = mean.toFixed(1);
+            document.getElementById('featStd').innerText = std.toFixed(2);
+
+            const numProb = parseFloat(probPercent);
+            const banner = document.getElementById('riskBanner');
+            const bgProgress = document.getElementById('riskBgProgress');
+            const pctLabel = document.getElementById('riskPercentage');
+            const conclusion = document.getElementById('riskConclusion');
+
+            pctLabel.innerText = probPercent + "%";
+            setTimeout(() => { bgProgress.style.width = probPercent + "%"; }, 100);
+
+            if (numProb >= 65) {
+                banner.className = "p-5 rounded-xl mb-5 text-center shadow-lg border relative overflow-hidden bg-slate-800 border-red-900 text-red-400";
+                bgProgress.className = "absolute top-0 left-0 h-full transition-all duration-1000 ease-out bg-red-600/20";
+                conclusion.innerHTML = "<i class='fas fa-exclamation-triangle'></i> High Risk (Malignant Suspected)";
+            } else if (numProb >= 30) {
+                banner.className = "p-5 rounded-xl mb-5 text-center shadow-lg border relative overflow-hidden bg-slate-800 border-amber-900 text-amber-400";
+                bgProgress.className = "absolute top-0 left-0 h-full transition-all duration-1000 ease-out bg-amber-600/20";
+                conclusion.innerHTML = "<i class='fas fa-search'></i> Intermediate Risk (Indeterminate)";
+            } else {
+                banner.className = "p-5 rounded-xl mb-5 text-center shadow-lg border relative overflow-hidden bg-slate-800 border-emerald-900 text-emerald-400";
+                bgProgress.className = "absolute top-0 left-0 h-full transition-all duration-1000 ease-out bg-emerald-600/20";
+                conclusion.innerHTML = "<i class='fas fa-check-circle'></i> Low Risk (Likely Benign)";
+            }
+        }
+
+        function hideAnalysis() {
+            emptyAnalysis.style.display = 'flex';
+            analysisResult.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
+
+```
